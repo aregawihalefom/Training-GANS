@@ -1,63 +1,55 @@
 import os
-
-# os.environ[
-#     'TF_CPP_MIN_LOG_LEVEL'] = '1'  # '0' for DEBUG=all [default], '1' to filter INFO msgs, '2' to filter WARNING msgs, '3' to filter all msgs
-# os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+os.environ['TF_CPP_MIN_LOG_LEVEL']='1' # '0' for DEBUG=all [default], '1' to filter INFO msgs, '2' to filter WARNING msgs, '3' to filter all msgs
+os.environ["CUDA_VISIBLE_DEVICES"]='0'
 
 import tensorflow
+physical_devices = tensorflow.config.experimental.list_physical_devices('GPU')
+tensorflow.config.experimental.set_memory_growth(physical_devices[0], True)
 
-# physical_devices = tensorflow.config.experimental.list_physical_devices('GPU')
-# tensorflow.config.experimental.set_memory_growth(physical_devices[0], True)
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from tensorflow.keras.datasets import cifar10
-from tensorflow.keras.layers import Activation, BatchNormalization, Conv2D, Conv2DTranspose, Dense, Dropout, Flatten, \
-    LeakyReLU, Reshape
+from tensorflow.keras.datasets import mnist
+from tensorflow.keras.layers import Activation, BatchNormalization, Conv2D, Conv2DTranspose, Dense, Dropout, Flatten, LeakyReLU, Reshape
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.optimizers import Adam, RMSprop
-from tensorflow.keras.preprocessing import image
+from tensorflow.keras.optimizers import Adam
 
-img_rows = 32
-img_cols = 32
-channels = 3
+
+img_rows = 28
+img_cols = 28
+channels = 1
 
 img_shape = (img_rows, img_cols, channels)
 
-z_dim = 100  # size of noise vector / latent space
+z_dim = 100  #size of noise vector / latent space 
 
 
 def build_generator(z_dim):
-
     model = Sequential()
-    model.add(Dense(128 * 16 * 16, input_dim=z_dim))
+    model.add(Dense(256 * 7 * 7, input_dim=z_dim))
+    model.add(BatchNormalization())
     model.add(LeakyReLU())
-    model.add(Reshape((16, 16, 128)))
-    model.add(Conv2D(256, kernel_size=5, padding='same'))
+    model.add(Reshape((7, 7, 256)))
+    model.add(Conv2DTranspose(128, kernel_size=(5, 5), strides=(1, 1), padding='same', use_bias=False))
+    model.add(BatchNormalization())
     model.add(LeakyReLU())
-    model.add(Conv2DTranspose(256, kernel_size=4, strides=2, padding='same'))
+    model.add(Conv2DTranspose(64, kernel_size=(5, 5), strides=(2,2), padding='same', use_bias=False))
+    model.add(BatchNormalization())
     model.add(LeakyReLU())
-    model.add(Conv2D(256, kernel_size=5, padding='same'))
-    model.add(LeakyReLU())
-    model.add(Conv2D(256, kernel_size=5, padding='same'))
-    model.add(LeakyReLU())
-    model.add(Conv2D(channels, kernel_size=7, padding='same', activation='tanh'))
+    model.add(Conv2DTranspose(channels, kernel_size=(5, 5), strides=(2, 2), padding='same', use_bias=False, activation='tanh'))
     return model
 
 
 def build_discriminator(img_shape):
     model = Sequential()
-    model.add(Conv2D(128, kernel_size=3, input_shape=img_shape))
+    model.add(Conv2D(64, kernel_size=(5, 5), strides=(2, 2), padding='same', input_shape=img_shape))
     model.add(LeakyReLU())
-    model.add(Conv2D(128, kernel_size=4))
+    model.add(Dropout(0.3))
+    model.add(Conv2D(128, kernel_size=(5, 5), strides=(2, 2), padding='same'))
     model.add(LeakyReLU())
-    model.add(Conv2D(128, kernel_size=4))
-    model.add(LeakyReLU())
-    model.add(Conv2D(128, kernel_size=4))
-    model.add(LeakyReLU())
+    model.add(Dropout(0.3))
     model.add(Flatten())
-    model.add(Dropout(0.4))
     model.add(Dense(1, activation='sigmoid'))
     return model
 
@@ -72,7 +64,7 @@ def build_gan(generator, discriminator):
 
 discriminator = build_discriminator(img_shape)
 discriminator.compile(loss='binary_crossentropy',
-                      optimizer=RMSprop(lr=0.0008, clipvalue=1.0, decay=1e-8),
+                      optimizer=Adam(),
                       metrics=['accuracy'])
 
 generator = build_generator(z_dim)
@@ -81,8 +73,8 @@ generator = build_generator(z_dim)
 discriminator.trainable = False
 
 gan = build_gan(generator, discriminator)
-gan.compile(loss='binary_crossentropy',
-            optimizer=RMSprop(lr=0.0004, clipvalue=1.0, decay=1e-8))
+gan.compile(loss='binary_crossentropy', optimizer=Adam())
+
 
 losses = []
 accuracies = []
@@ -91,15 +83,12 @@ iteration_checkpoints = []
 
 def train(iterations, batch_size, sample_interval):
 
-    # Load the CIFAR10 dataset
-    (X_train, y_train), (_, _) = cifar10.load_data()
-
-    # Keep only one class
-    X_train = X_train[y_train.flatten() == 3]
-    # [0:'airplane', 1:'automobile', 2:'bird', 3:'cat', 4:'deer', 5:'dog', 6:'frog', 7:'horse', 8:'ship', 9:'truck']
+    # Load the MNIST dataset
+    (X_train, _), (_, _) = mnist.load_data()
 
     # Rescale [0, 255] grayscale pixel values to [-1, 1]
     X_train = X_train / 127.5 - 1.0
+    X_train = np.expand_dims(X_train, axis=3)
 
     # Labels for real images: all ones
     real = np.ones((batch_size, 1))
@@ -109,7 +98,7 @@ def train(iterations, batch_size, sample_interval):
 
     for iteration in range(iterations):
 
-        # --  Train the Discriminator
+        #  Train the Discriminator
 
         # Get a random batch of real images
         idx = np.random.randint(0, X_train.shape[0], batch_size)
@@ -124,7 +113,7 @@ def train(iterations, batch_size, sample_interval):
         d_loss_fake = discriminator.train_on_batch(gen_imgs, fake)
         d_loss, accuracy = 0.5 * np.add(d_loss_real, d_loss_fake)
 
-        # --  Train the Generator
+        #  Train the Generator
 
         # Generate a batch of fake images
         z = np.random.normal(0, 1, (batch_size, z_dim))
@@ -134,6 +123,7 @@ def train(iterations, batch_size, sample_interval):
         g_loss = gan.train_on_batch(z, real)
 
         if (iteration + 1) % sample_interval == 0:
+
             # Save losses and accuracies so they can be plotted after training
             losses.append((d_loss, g_loss))
             accuracies.append(100.0 * accuracy)
@@ -144,36 +134,34 @@ def train(iterations, batch_size, sample_interval):
                   (iteration + 1, d_loss, 100.0 * accuracy, g_loss))
 
             # Output a sample of generated image
-            sample_images(generator, iteration)
+            sample_images(generator)
 
 
-image_grid_rows = 3
-image_grid_columns = 4
-
-fig = plt.figure(figsize=(6, 6))
+image_grid_rows=5
+image_grid_columns=13
+fig = plt.figure(figsize=(image_grid_rows, image_grid_columns))
 fig.show()
-# reuse the same noise vector to visualise progression over time
+#reuse the same noise vector to visualise progression over time
 z_sample_images = np.random.normal(0, 1, (image_grid_rows * image_grid_columns, z_dim))
 
 
-def sample_images(generator, iteration):
-    # z_sample_images = np.random.normal(0, 1, (image_grid_rows * image_grid_columns, z_dim))
+def sample_images(generator):
+    #z_sample_images = np.random.normal(0, 1, (image_grid_rows * image_grid_columns, z_dim))
     gen_imgs = generator.predict(z_sample_images)
-    for i in range(12):
-        img = (gen_imgs[i, :, :, :] * 127.5 + 127.5) / 255
-        plt.subplot(image_grid_rows, image_grid_columns, i + 1)
-        plt.imshow(img)
+    for i in range(gen_imgs.shape[0]):
+        plt.subplot(image_grid_rows, image_grid_columns, i+1)
+        plt.imshow(gen_imgs[i, :, :, 0] * 127.5 + 127.5, cmap='gray')
         plt.axis('off')
     fig.canvas.draw()
-    plt.savefig('images/image_at_{:04d}.png'.format(iteration))
     plt.pause(0.01)
 
-
-iterations = 2
-batch_size = 150
-sample_interval = 1
+iterations = 20000
+batch_size = 128
+sample_interval = 250
 
 train(iterations, batch_size, sample_interval)
+
+
 
 losses = np.array(losses)
 
@@ -188,6 +176,7 @@ plt.title("Training Loss")
 plt.xlabel("Iteration")
 plt.ylabel("Loss")
 plt.legend()
+
 
 accuracies = np.array(accuracies)
 
