@@ -151,7 +151,7 @@ image_grid_rows = 3
 image_grid_columns = 4
 
 fig = plt.figure(figsize=(6, 6))
-fig.show()
+#fig.show()
 # reuse the same noise vector to visualise progression over time
 z_sample_images = np.random.normal(0, 1, (image_grid_rows * image_grid_columns, z_dim))
 
@@ -166,12 +166,12 @@ def sample_images(generator, iteration):
         plt.axis('off')
     fig.canvas.draw()
     plt.savefig('images/image_at_{:04d}.png'.format(iteration))
-    plt.pause(0.01)
+    #plt.pause(0.01)
 
 
-iterations = 2
-batch_size = 150
-sample_interval = 1
+iterations = 10000
+batch_size = 250
+sample_interval = 250
 
 train(iterations, batch_size, sample_interval)
 
@@ -188,7 +188,7 @@ plt.title("Training Loss")
 plt.xlabel("Iteration")
 plt.ylabel("Loss")
 plt.legend()
-
+plt.savefig('images/losses_cifar10.png')
 accuracies = np.array(accuracies)
 
 # Plot Discriminator accuracy
@@ -202,5 +202,5 @@ plt.title("Discriminator Accuracy")
 plt.xlabel("Iteration")
 plt.ylabel("Accuracy (%)")
 plt.legend()
-
-plt.show()
+plt.savefig('images/accuracy_cifar10.png')
+#plt.show()

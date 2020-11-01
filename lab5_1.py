@@ -90,29 +90,31 @@ def train(iterations, batch_size, sample_interval):
             accuracies.append(100.0 * accuracy)
             iteration_checkpoints.append(iteration + 1)
             print("%d {D loss: %f, acc: %.2f%%] [G loss:%f]" % (iteration+1, d_loss, 100.0 * accuracy, g_loss))
-            sample_images(generator)
+            sample_images(generator,iteration)
 
-image_grid_rows=5
-image_grid_columns=13
-fig = plt.figure(figsize=(image_grid_rows, image_grid_columns))
-fig.show()
+image_grid_rows=3
+image_grid_columns=4
+fig = plt.figure(figsize=(6,6))
+#fig.show()
 #reuse the same noise vector to visualise progression over time
 z_sample_images = np.random.normal(0, 1, (image_grid_rows * image_grid_columns, z_dim))
 
-def sample_images(generator):
+def sample_images(generator,iteration):
     #z_sample_images = np.random.normal(0, 1, (image_grid_rows * image_grid_columns, z_dim))
     gen_imgs = generator.predict(z_sample_images)
-    for i in range(gen_imgs.shape[0]):
+    for i in range(12):
         plt.subplot(image_grid_rows, image_grid_columns, i+1)
         plt.imshow(gen_imgs[i, :, :, 0] * 127.5 + 127.5, cmap='gray')
         plt.axis('off')
+        plt.savefig('images1/image_at_{:04d}.png'.format(iteration))
     fig.canvas.draw()
-    plt.pause(0.01)
+    # plt.pause(0.01)
 
 
-iterations = 20000
+
+iterations =20000
 batch_size = 128
-sample_interval = 250
+sample_interval =250
 
 train(iterations, batch_size, sample_interval)
 
@@ -134,7 +136,7 @@ plt.xlabel("Iteration")
 plt.ylabel("Loss")
 plt.legend()
 
-
+plt.savefig('images1/losses_mnist1.png')
 accuracies = np.array(accuracies)
 
 # Plot Discriminator accuracy
@@ -148,5 +150,5 @@ plt.title("Discriminator Accuracy")
 plt.xlabel("Iteration")
 plt.ylabel("Accuracy (%)")
 plt.legend()
-
-plt.show()
+plt.savefig('images1/accuracy_mnist1.png')
+#plt.show()
